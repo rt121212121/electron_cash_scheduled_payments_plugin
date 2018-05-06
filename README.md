@@ -4,6 +4,14 @@ This is licensed under the MIT open source license.
 
 ![Screenshot](https://github.com/rt121212121/electron_cash_scheduled_payments_plugin/raw/master/screenshot.png)
 
+## Donate ##
+
+If you wish to encourage further development on things that matter to you, or even just show your appreciation, please feel free to donate to:
+
+  bitcoincash:qqg34gn7xfrd7yr7xjuklarptxn0xqg9tgexm2zu9z
+  
+![Screenshot](https://github.com/rt121212121/electron_cash_scheduled_payments_plugin/raw/master/donate.png)
+
 ## Installation ##
 
 The 'scheduled_payments' folder is an [Electron Cash](https://electroncash.org/) plugin.  It needs to be made available to the copy of Electron Cash you plan to run it with.  The normal way to do this, is to copy the folder (that's the folder itself, not the files within it) into the `plugins` folder of that Electron Cash instance.
