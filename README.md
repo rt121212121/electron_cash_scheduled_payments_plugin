@@ -30,11 +30,10 @@ Once you have the plugin installed and enabled, you may attempt to use it.
 
 1. Select the `Scheduled Payments` tab.
 2. Right click in the list window, and select the `New scheduled payment` item.
-3. A dialog will appear that allows you to construct a scheduled payment.  It will estimate the next time that payment will be made, to help you visualise how your choice of when the payment will be made, will play out.  Select Create when you have filled out all the fields.
+3. A dialog will appear that allows you to construct a scheduled payment.  It will estimate the next time that payment will be made, to help you visualise how your choice of when the payment will be made, will play out.  Select `Create` when you have filled out all the fields.
 4. Wait until that new payment's next payment time passes.
 
 ## Known Issues ##
 
-* The fake clock is not correctly hooked up to the payment scheduler.
-* If you enter more than one address in the scheduled payment, who knows what will happen.  Don't do it.
-
+* The fake clock is not correctly hooked up to the payment scheduler.  So it does work, but.. it's not obvious how it works.  Note that due payments are only detected once every real time minute, at 1 second past each minute.  But the time used for detection is always the current selected clock, whether real or fake.
+* If you enter more than one address in the scheduled payment, who knows what will happen.  Only one address is stored.
