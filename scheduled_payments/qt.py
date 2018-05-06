@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import *
 from electroncash.i18n import _
 from electroncash.plugins import BasePlugin, hook
 from electroncash.util import user_dir
+import electroncash.version
 
 from . import scheduler
 from . import when
@@ -35,14 +36,12 @@ class SchedulerThreadJob:
                 if hasattr(dialog, "onTimeChanged"):
                     dialog.onTimeChanged(clock_current_time)
            
-        # NOTE: This will not work with the fake clock, as minutes pass faster.
+        # NOTE: This will not work (correctly) with the fake clock, as minutes pass faster.
         if thread_current_time - self.last_minute_time > 60.0:
             self.last_minute_time += 60.0
             
             clock_current_time = self.plugin.clock.getTime()
             self.plugin.signal_dummy.due_payments_signal.emit(clock_current_time)
-            #for wallet_name in self.plugin.get_open_wallet_names():
-            #    self.plugin.process_due_payments(wallet_name, current_time=clock_current_time)
                 
                 
 class SignalDummy(QObject):
@@ -51,6 +50,9 @@ class SignalDummy(QObject):
                 
 class Plugin(BasePlugin):
     electrumcash_qt_gui = None
+    
+    # There's no real user-friendly way to enforce this.  So for now, we just calculate it, and ignore it.
+    is_version_compatible = True
     
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
@@ -86,8 +88,11 @@ class Plugin(BasePlugin):
         return _("Schedule payments, in some way")
 
     def is_available(self):
+        if self.is_version_compatible is None:
+            version = float(electroncash.version.PACKAGE_VERSION)
+            self.is_version_compatible = version >= MINIMUM_ELECTRON_CASH_VERSION
         return True
-
+        
     def thread_jobs(self):
         return [
             self.job,
@@ -97,6 +102,7 @@ class Plugin(BasePlugin):
         """
         BasePlugin callback called when the wallet is disabled among other things.
         """
+
         for window in self.electrumcash_qt_gui.windows:
             self.close_wallet(window.wallet)
             
