@@ -1,3 +1,5 @@
+import datetime
+
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -56,16 +58,15 @@ class PaymentDialog(QDialog, MessageBoxMixin):
         else:
             self.setWindowTitle(_("Edit Existing Scheduled Payment"))
             
-        vbox = QVBoxLayout()
-        self.setLayout(vbox)
+        formLayout = QFormLayout()
+        self.setLayout(formLayout)
         
         # Input fields.
         msg = _('Description of the payment (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')
         self.description_label = HelpLabel(_('Description'), msg)
-        vbox.addWidget(self.description_label)
         self.description_edit = MyLineEdit()
         self.description_edit.setText(self.value_description)
-        vbox.addWidget(self.description_edit)
+        formLayout.addRow(self.description_label, self.description_edit)
         
         msg = _('How much to pay.') + '\n\n' + _('Unhelpful descriptive text')
         self.amount_label = HelpLabel(_('Amount'), msg)
@@ -79,8 +80,7 @@ class PaymentDialog(QDialog, MessageBoxMixin):
         self.payto_edit = PayToEdit(self)
         msg = _('Recipient of the funds.') + '\n\n' + _('You may enter a Bitcoin Cash address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin Cash address)')
         payto_label = HelpLabel(_('Pay to'), msg)
-        vbox.addWidget(payto_label)
-        vbox.addWidget(self.payto_edit)
+        formLayout.addRow(payto_label, self.payto_edit)
         def set_payment_address(address):
             self.payto_edit.payto_address = bitcoin.TYPE_ADDRESS, Address.from_string(address)
             self.value_payto_outputs = self.payto_edit.get_outputs(False)
@@ -100,32 +100,29 @@ class PaymentDialog(QDialog, MessageBoxMixin):
         completer.setModel(self.completions)
 
         # WARNING: We created this before PayToEdit and add it to the layout after, due to the dependency issues with PayToEdit accessing `self.amount_e`.
-        vbox.addWidget(self.amount_label)
-        vbox.addWidget(self.amount_e)
+        formLayout.addRow(self.amount_label, self.amount_e)
         
         if payment_data is not None:
-            edit = MyLineEdit()
-            edit.setText("TODO... Need to populate this with a real value")
-            edit.setFrozen(True)
-            msg = _('Date last paid.') + '\n\n' + _('The date that this scheduled payment last sent a transaction to the network')
-            label = HelpLabel(_('Last Paid'), msg)
-            vbox.addWidget(label)
-            vbox.addWidget(edit)
+            text = _("No payments made.")
+            if payment_data[PAYMENT_DATELASTPAID] is not None:
+                text = datetime.datetime.fromtimestamp(payment_data[PAYMENT_DATELASTPAID]).strftime("%c")
+            textLabel = QLabel(text)
+            label = HelpLabel(_('Last Paid'), _('Date last paid.') + '\n\n' + _('The date at which this scheduled payment was last meant to send a transaction to the network, which the user acted on'))
+            formLayout.addRow(label, textLabel)
             
         count_combo = QComboBox()
         count_combo.addItems(self.display_count_labels)
         count_combo.setCurrentIndex(self.display_count_labels.index(self.count_labels[self.value_run_occurrences]))
         msg = _('Run occurrences.') + '\n\n' + _('The number of times the payment should be made.')
         label = HelpLabel(_('Run occurrences'), msg)
-        vbox.addWidget(label)
-        vbox.addWidget(count_combo)
+        formLayout.addRow(label, count_combo)
 
         import importlib
         from . import when_widget
         importlib.reload(when_widget)
         self.whenWidget = when_widget.WhenWidget(_("When"))
         self.whenWidget.setWhen(None if payment_data is None else payment_data[PAYMENT_WHEN])
-        vbox.addWidget(self.whenWidget)
+        formLayout.addRow(self.whenWidget)
 
         # NOTE: Hook up value events and provide handlers.
         
@@ -175,7 +172,7 @@ class PaymentDialog(QDialog, MessageBoxMixin):
         #hbox.addLayout(Buttons(*self.sharing_buttons))
         hbox.addStretch(1)
         hbox.addLayout(Buttons(*self.buttons))
-        vbox.addLayout(hbox)
+        formLayout.addRow(hbox)
 
         validate_input_values()
         self.update()
