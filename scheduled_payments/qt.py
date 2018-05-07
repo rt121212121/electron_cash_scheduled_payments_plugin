@@ -107,6 +107,14 @@ class Plugin(BasePlugin):
             self.close_wallet(window.wallet)
             
         self.close_clock_window()
+        
+    @hook
+    def update_contact(self, address, new_entry, old_entry):
+        print("update_contact", address, new_entry, old_entry)
+
+    @hook
+    def delete_contacts(self, contact_entries):
+        print("delete_contacts", contact_entries)
             
     @hook
     def init_qt(self, qt_gui):
@@ -321,11 +329,20 @@ class Plugin(BasePlugin):
         wallet_tab.update()
         wallet_tab = self.wallet_payment_lists[wallet_name]
         wallet_tab.update()
+
+    def check_payment_data(self, payment_data):
+        if payment_data is None:
+            return
+            
+        while len(payment_data) < PAYMENT_ENTRY_LENGTH:
+            payment_data.append(None)
         
     def open_payment_editor(self, wallet_name, entry=None):
         payment_id = None
         if entry is not None:
             payment_id = entry[PAYMENT_ID]
+            
+        self.check_payment_data(entry)
             
         dialog = None
         if  wallet_name in self.wallet_payment_editor_dialogs:
@@ -441,8 +458,7 @@ class Plugin(BasePlugin):
         wallet_data = self.wallet_data[wallet_name]
         payment_entries = wallet_data.get(PAYMENT_DATA_KEY, [])
         
-        while len(payment_data) < PAYMENT_ENTRY_LENGTH:
-            payment_data.append(None)
+        self.check_payment_data(payment_data)
             
         if payment_data[PAYMENT_ID] is None:
             # Finish initialising the new payment and add it to the list.

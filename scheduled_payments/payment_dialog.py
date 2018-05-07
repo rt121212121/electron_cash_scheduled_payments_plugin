@@ -39,12 +39,14 @@ class PaymentDialog(QDialog, MessageBoxMixin):
             "Always",
         ]
         run_always_index = self.count_labels.index("Always")
-
+        
         # NOTE: User entered data, for verification purposes (enabling save/create), and subsequent dispatch on button press.
+        
         self.value_description = ""
         self.value_amount = None
         self.value_payto_outputs = []
         self.value_run_occurrences = self.count_labels.index("Always")
+        self.set_flags(self.payment_data[PAYMENT_FLAGS])
         
         if self.payment_data is not None:
             self.value_description = self.payment_data[PAYMENT_DESCRIPTION]
@@ -113,9 +115,16 @@ class PaymentDialog(QDialog, MessageBoxMixin):
         count_combo = QComboBox()
         count_combo.addItems(self.display_count_labels)
         count_combo.setCurrentIndex(self.display_count_labels.index(self.count_labels[self.value_run_occurrences]))
-        msg = _('Run occurrences.') + '\n\n' + _('The number of times the payment should be made.')
-        label = HelpLabel(_('Run occurrences'), msg)
+        msg = _('Repeat') + '\n\n' + _('The number of times the payment should be made.')
+        label = HelpLabel(_('Repeat'), msg)
         formLayout.addRow(label, count_combo)
+        
+        self.autoPaymentCheckbox = QCheckBox("Make this payment automatically.")
+        isEnabled = not self.main_window.wallet.storage.is_encrypted()
+        self.value_autopayment = self.value_autopayment and isEnabled
+        self.autoPaymentCheckbox.setChecked(self.value_autopayment)
+        self.autoPaymentCheckbox.setEnabled(isEnabled)
+        formLayout.addRow(_("Options"), self.autoPaymentCheckbox)
 
         import importlib
         from . import when_widget
@@ -154,6 +163,10 @@ class PaymentDialog(QDialog, MessageBoxMixin):
             self.value_description = self.description_edit.text().strip()
             validate_input_values()
         self.description_edit.textChanged.connect(on_description_changed)
+        
+        def on_autopayment_toggled(v):
+            self.value_autopayment = v == Qt.Checked
+        self.autoPaymentCheckbox.stateChanged.connect(on_autopayment_toggled)
         
         # Buttons at bottom right.
         save_button_text = _("Save")
@@ -195,6 +208,7 @@ class PaymentDialog(QDialog, MessageBoxMixin):
         payment_data[PAYMENT_COUNT0] = self.value_run_occurrences
         payment_data[PAYMENT_WHEN] = self.whenWidget.getWhen().toText()
         payment_data[PAYMENT_DATENEXTPAID] = self.whenWidget.getEstimatedTime()
+        payment_data[PAYMENT_FLAGS] = self.get_flags()
         
         wallet_name = self.main_window.wallet.basename()
         self.plugin.update_payment(wallet_name, payment_data)
@@ -212,6 +226,18 @@ class PaymentDialog(QDialog, MessageBoxMixin):
         
     def onTimeChanged(self, clock_current_time):
         self.whenWidget.updateEstimatedTime(currentTime=clock_current_time)
+        
+    def get_flags(self):
+        flags = 0
+        if self.value_autopayment:
+            flags |= PAYMENT_FLAG_AUTOPAY
+        return flags
+        
+    def set_flags(self, flags):
+        if flags is not None:
+            self.value_autopayment = flags & PAYMENT_FLAG_AUTOPAY == PAYMENT_FLAG_AUTOPAY
+        else:
+            self.value_autopayment = False
 
     def lock_amount(self, flag): # WARNING: Copied as needed for PayToEdit
         self.amount_e.setFrozen(flag)
