@@ -118,10 +118,12 @@ class PaymentDialog(QDialog, MessageBoxMixin):
         msg = _('Repeat') + '\n\n' + _('The number of times the payment should be made.')
         label = HelpLabel(_('Repeat'), msg)
         formLayout.addRow(label, count_combo)
-        
-        self.autoPaymentCheckbox = QCheckBox("Make this payment automatically.")
+
+        # The setting will be cleared if the wallet somehow becomes unencrypted, and will only be available for unencrypted wallets.
         isEnabled = not self.main_window.wallet.storage.is_encrypted()
         self.value_autopayment = self.value_autopayment and isEnabled
+        # Will show it for now, for encrypted wallets.  Might be less confusing not to show it.
+        self.autoPaymentCheckbox = QCheckBox("Make this payment automatically.")
         self.autoPaymentCheckbox.setChecked(self.value_autopayment)
         self.autoPaymentCheckbox.setEnabled(isEnabled)
         formLayout.addRow(_("Options"), self.autoPaymentCheckbox)

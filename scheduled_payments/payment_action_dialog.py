@@ -69,7 +69,7 @@ class PaymentActionDialog(QDialog, MessageBoxMixin):
             self.plugin.forget_overdue_payment_occurrences(self.wallet_name, payment_occurrence_keys)
             self.close()
         elif self.action == ACTION_PAY:
-            self.plugin.pay_overdue_payment_occurrences(self.wallet_name, payment_occurrence_keys)
+            self.plugin.prompt_pay_overdue_payment_occurrences(self.wallet_name, payment_occurrence_keys)
             self.close()
         
     def on_items_selected(self, selected_ids):

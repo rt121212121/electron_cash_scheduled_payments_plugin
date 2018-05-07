@@ -177,30 +177,10 @@ class Plugin(BasePlugin):
         
         due_payment_entries = self.get_due_payments_for_wallet(wallet_name, current_time)
         if not len(due_payment_entries):
-            if False:
-                print("due_payment_entries", due_payment_entries, time.time())
-                payments = self.get_wallet_payments(wallet_name)
-                print(payments)
             return
 
         for payment_data in due_payment_entries:
-            payment_when = when.When.fromText(payment_data[PAYMENT_WHEN])
-            relevant_start_times = []
-            if payment_data[PAYMENT_DATELASTPAID] is not None:
-                relevant_start_times.append(payment_data[PAYMENT_DATELASTPAID])
-            relevant_start_times.append(payment_data[PAYMENT_DATEUPDATED])
-            estimation_start_time = max(relevant_start_times)
-            estimator = scheduler.WhenEstimator(estimation_start_time, payment_when)
-            overdue_payment_times = estimator.getNextOccurrences(maxMatches=100, maxTime=current_time)
-            for overdue_payment_time in overdue_payment_times:
-                if overdue_payment_time not in payment_data[PAYMENT_DATESOVERDUE]:
-                    payment_data[PAYMENT_DATESOVERDUE].append(overdue_payment_time)
-            # This sets the new time marker for what is considered overdue.
-            payment_data[PAYMENT_DATEUPDATED] = current_time
-            # Calculate the time of the next payment in the future.
-            estimator = scheduler.WhenEstimator(current_time, payment_when)            
-            future_payment_times = estimator.getNextOccurrences(maxMatches=1)
-            payment_data[PAYMENT_DATENEXTPAID] = future_payment_times[0]
+            self.dispatch_due_payment(wallet_name, payment_data, current_time)
 
         wallet_data = self.wallet_data[wallet_name]
         wallet_data.save()
@@ -217,7 +197,47 @@ class Plugin(BasePlugin):
             s += _("%d scheduled payments became due.") % len(due_payment_entries)
         s += " "+ _("Check the scheduled payments tab.")
         window.notify(s)
+        
+    def dispatch_due_payment(self, wallet_name, payment_data, current_time):
+        """ Either automatically pay, or put into overdue status, a due payment. """
+        payment_when = when.When.fromText(payment_data[PAYMENT_WHEN])
+        relevant_start_times = []
+        if payment_data[PAYMENT_DATELASTPAID] is not None:
+            relevant_start_times.append(payment_data[PAYMENT_DATELASTPAID])
+        relevant_start_times.append(payment_data[PAYMENT_DATEUPDATED])
+        estimation_start_time = max(relevant_start_times)
+        estimator = scheduler.WhenEstimator(estimation_start_time, payment_when)
+        overdue_payment_times = estimator.getNextOccurrences(maxMatches=100, maxTime=current_time)
+        if self.should_autopay_payment(wallet_name, payment_data):
+            self.autopay_payment(wallet_name, payment_data, overdue_payment_times)
+        else:
+            self.remember_overdue_payment_occurrences( payment_data, overdue_payment_times)
+        # This sets the new time marker for what is considered overdue.
+        payment_data[PAYMENT_DATEUPDATED] = current_time
+        # Calculate the time of the next payment in the future.
+        estimator = scheduler.WhenEstimator(current_time, payment_when)            
+        future_payment_times = estimator.getNextOccurrences(maxMatches=1)
+        payment_data[PAYMENT_DATENEXTPAID] = future_payment_times[0]
+        
+    def should_autopay_payment(self, wallet_name, payment_data):
+        """ Whether a payment in a wallet should be paid automatically, rather than simply marked as an unpaid occurrence. """
+        window = self.wallet_windows.get(wallet_name, None)
+        if not window.wallet.storage.is_encrypted() and payment_data[PAYMENT_FLAGS] is not None:
+            return payment_data[PAYMENT_FLAGS] & PAYMENT_FLAG_AUTOPAY == PAYMENT_FLAG_AUTOPAY
+        return False
 
+    def autopay_payment(self, wallet_name, payment_data, overdue_payment_times):
+        """ For unencrypted wallets, the option is (will be) there to make the payments automatically, rather than simply mark them as unpaid occurrences. """
+        # TODO implement this, but for now it just does the same.
+        print("AUTOPAY", wallet_name, payment_data, overdue_payment_times)
+        self.remember_overdue_payment_occurrences(payment_data, overdue_payment_times)
+        
+    def remember_overdue_payment_occurrences(self, payment_data, overdue_payment_times):
+        """ Record the newly identified overdue payment occurrences. """
+        for overdue_payment_time in overdue_payment_times:
+            if overdue_payment_time not in payment_data[PAYMENT_DATESOVERDUE]:
+                payment_data[PAYMENT_DATESOVERDUE].append(overdue_payment_time)
+        
     def check_payments_overdue(self, wallet_name, payment_ids):
         wallet_data = self.wallet_data[wallet_name]
         payment_entries = wallet_data.get(PAYMENT_DATA_KEY, [])
@@ -227,7 +247,7 @@ class Plugin(BasePlugin):
                 return True
         return False
         
-    def pay_overdue_payment_occurrences(self, wallet_name, payment_occurrence_keys):
+    def prompt_pay_overdue_payment_occurrences(self, wallet_name, payment_occurrence_keys):
         matches = self.forget_overdue_payment_occurrences(wallet_name, payment_occurrence_keys, mark_paid=True)
         if not len(matches):
             return
@@ -300,6 +320,14 @@ class Plugin(BasePlugin):
             del self.wallet_payment_action_dialogs[wallet_name]
             dialog.close()
 
+        payment_dialogs = self.wallet_payment_editor_dialogs.get(wallet_name, None)
+        if payment_dialogs is not None:
+            for payment_id in list(self.wallet_payment_editor_dialogs[wallet_name].keys()):
+                dialog = self.wallet_payment_editor_dialogs[wallet_name][payment_id]
+                del self.wallet_payment_editor_dialogs[wallet_name][payment_id]
+                dialog.close()
+            del self.wallet_payment_editor_dialogs[wallet_name]
+            
         wallet_tab = self.wallet_payment_tabs.get(wallet_name, None)
         if wallet_tab is not None:        
             del self.wallet_payment_lists[wallet_name]
@@ -332,11 +360,10 @@ class Plugin(BasePlugin):
 
     def check_payment_data(self, payment_data):
         if payment_data is None:
-            return
-            
+            return            
         while len(payment_data) < PAYMENT_ENTRY_LENGTH:
             payment_data.append(None)
-        
+    
     def open_payment_editor(self, wallet_name, entry=None):
         payment_id = None
         if entry is not None:
@@ -369,7 +396,8 @@ class Plugin(BasePlugin):
             dialog.show()
             
     def on_payment_editor_closed(self, wallet_name, payment_id):
-        del self.wallet_payment_editor_dialogs[wallet_name][payment_id]
+        if wallet_name in self.wallet_payment_editor_dialogs and payment_id in self.wallet_payment_editor_dialogs[wallet_name]:
+            del self.wallet_payment_editor_dialogs[wallet_name][payment_id]
         
     def open_payment_action_window(self, wallet_name, payment_ids, action):
         dialog = self.wallet_payment_action_dialogs.get(wallet_name, None)
