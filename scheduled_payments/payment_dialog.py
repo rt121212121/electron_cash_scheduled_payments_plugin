@@ -46,7 +46,7 @@ class PaymentDialog(QDialog, MessageBoxMixin):
         self.value_amount = None
         self.value_payto_outputs = []
         self.value_run_occurrences = self.count_labels.index("Always")
-        self.set_flags(self.payment_data[PAYMENT_FLAGS])
+        self.set_flags(0 if self.payment_data is None else self.payment_data[PAYMENT_FLAGS])
         
         if self.payment_data is not None:
             self.value_description = self.payment_data[PAYMENT_DESCRIPTION]
@@ -236,10 +236,7 @@ class PaymentDialog(QDialog, MessageBoxMixin):
         return flags
         
     def set_flags(self, flags):
-        if flags is not None:
-            self.value_autopayment = flags & PAYMENT_FLAG_AUTOPAY == PAYMENT_FLAG_AUTOPAY
-        else:
-            self.value_autopayment = False
+        self.value_autopayment = flags & PAYMENT_FLAG_AUTOPAY == PAYMENT_FLAG_AUTOPAY
 
     def lock_amount(self, flag): # WARNING: Copied as needed for PayToEdit
         self.amount_e.setFrozen(flag)

@@ -119,9 +119,12 @@ class Plugin(BasePlugin):
     @hook
     def init_qt(self, qt_gui):
         """
-        Hook called when the plugin is loaded (or enabled).
+        Hook called when a plugin is loaded (or enabled).
         """
         self.electrumcash_qt_gui = qt_gui
+        # We get this multiple times.  Only handle it once, if unhandled.
+        if len(self.wallet_windows):
+            return
 
         # These are per-wallet windows.
         for window in self.electrumcash_qt_gui.windows:
@@ -358,7 +361,7 @@ class Plugin(BasePlugin):
         wallet_tab = self.wallet_payment_lists[wallet_name]
         wallet_tab.update()
 
-    def check_payment_data(self, payment_data):
+    def correct_payment_data(self, payment_data):
         if payment_data is None:
             return            
         while len(payment_data) < PAYMENT_ENTRY_LENGTH:
@@ -369,7 +372,7 @@ class Plugin(BasePlugin):
         if entry is not None:
             payment_id = entry[PAYMENT_ID]
             
-        self.check_payment_data(entry)
+        self.correct_payment_data(entry)
             
         dialog = None
         if  wallet_name in self.wallet_payment_editor_dialogs:
@@ -486,7 +489,7 @@ class Plugin(BasePlugin):
         wallet_data = self.wallet_data[wallet_name]
         payment_entries = wallet_data.get(PAYMENT_DATA_KEY, [])
         
-        self.check_payment_data(payment_data)
+        self.correct_payment_data(payment_data)
             
         if payment_data[PAYMENT_ID] is None:
             # Finish initialising the new payment and add it to the list.
