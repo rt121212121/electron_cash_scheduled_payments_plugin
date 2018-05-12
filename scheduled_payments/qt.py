@@ -102,8 +102,7 @@ class Plugin(BasePlugin):
         """
         BasePlugin callback called when the wallet is disabled among other things.
         """
-
-        for window in self.electrumcash_qt_gui.windows:
+        for window in list(self.wallet_windows.values()):
             self.close_wallet(window.wallet)
             
         self.close_clock_window()

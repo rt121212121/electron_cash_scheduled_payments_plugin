@@ -1,0 +1,10 @@
+{
+    "display_name": "Scheduled Payments",
+    "version": 1.0,
+    "description": "This allows a user to specify recurring payments to a number of recipients.",
+    "minimum_ec_version": 3.2,
+    "package_name": "scheduled_payments",
+    "available_for": [
+        "qt"
+    ]
+}
