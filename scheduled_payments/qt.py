@@ -6,7 +6,9 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
+from electroncash.address import Address
 from electroncash.i18n import _
+from electroncash.bitcoin import TYPE_ADDRESS
 from electroncash.plugins import BasePlugin, hook
 from electroncash.util import user_dir
 import electroncash.version
@@ -181,27 +183,47 @@ class Plugin(BasePlugin):
         if not len(due_payment_entries):
             return
 
+        deferred_results = []
         for payment_data in due_payment_entries:
-            self.dispatch_due_payment(wallet_name, payment_data, current_time)
+            result = self.dispatch_due_payment(wallet_name, payment_data, current_time, defer_for_batching=True)
+            if result is not None:
+                deferred_results.append(result)
 
         wallet_data = self.wallet_data[wallet_name]
         wallet_data.save()
+        
+        if len(deferred_results):
+            txid = self.autopay_payments(wallet_name, deferred_results)
+            # Note if the payments were deferred for some reason, because payment failed.
+            if txid is None:
+                deferred_results = []
 
         # This is already done by the wallet loading code.
         if not on_wallet_loaded:
             self.refresh_ui_for_wallet(wallet_name)
 
         window = self.wallet_windows[wallet_name]
-        s = wallet_name +": "
-        if len(due_payment_entries) == 1:
-            s += _("1 scheduled payment became due.")
-        else:
-            s += _("%d scheduled payments became due.") % len(due_payment_entries)
-        s += " "+ _("Check the scheduled payments tab.")
-        window.notify(s)
+        paid_payment_ids = set(payment_data[PAYMENT_ID] for payment_data, amount in deferred_results)
+        if len(paid_payment_ids) > 0:
+            s = wallet_name +": "
+            if len(paid_payment_ids) == 1:
+                s += _("1 scheduled payment was made.")
+            else:
+                s += _("%d scheduled payments were made.") % len(paid_payment_ids)
+            window.notify(s)
+        due_payment_ids = set(payment_data[PAYMENT_ID] for payment_data in due_payment_entries).difference(paid_payment_ids)
+        if len(due_payment_ids) > 0:
+            s = wallet_name +": "
+            if len(due_payment_ids) == 1:
+                s += _("1 scheduled payment became due.")
+            else:
+                s += _("%d scheduled payments became due.") % len(due_payment_ids)
+            s += " "+ _("Check the scheduled payments tab.")
+            window.notify(s)
         
-    def dispatch_due_payment(self, wallet_name, payment_data, current_time):
+    def dispatch_due_payment(self, wallet_name, payment_data, current_time, defer_for_batching=False):
         """ Either automatically pay, or put into overdue status, a due payment. """
+        deferred_result = None
         payment_when = when.When.fromText(payment_data[PAYMENT_WHEN])
         relevant_start_times = []
         if payment_data[PAYMENT_DATELASTPAID] is not None:
@@ -211,7 +233,11 @@ class Plugin(BasePlugin):
         estimator = scheduler.WhenEstimator(estimation_start_time, payment_when)
         overdue_payment_times = estimator.getNextOccurrences(maxMatches=100, maxTime=current_time)
         if self.should_autopay_payment(wallet_name, payment_data):
-            self.autopay_payment(wallet_name, payment_data, overdue_payment_times)
+            if defer_for_batching:
+                deferred_result = payment_data, overdue_payment_times
+            else:
+                # If this fails, the payments will have become overdue instead.
+                self.autopay_payments(wallet_name, [(payment_data, overdue_payment_times)])
         else:
             self.remember_overdue_payment_occurrences( payment_data, overdue_payment_times)
         # This sets the new time marker for what is considered overdue.
@@ -220,19 +246,44 @@ class Plugin(BasePlugin):
         estimator = scheduler.WhenEstimator(current_time, payment_when)            
         future_payment_times = estimator.getNextOccurrences(maxMatches=1)
         payment_data[PAYMENT_DATENEXTPAID] = future_payment_times[0]
+        return deferred_result
         
     def should_autopay_payment(self, wallet_name, payment_data):
         """ Whether a payment in a wallet should be paid automatically, rather than simply marked as an unpaid occurrence. """
         window = self.wallet_windows.get(wallet_name, None)
-        if not window.wallet.storage.is_encrypted() and payment_data[PAYMENT_FLAGS] is not None:
-            return payment_data[PAYMENT_FLAGS] & PAYMENT_FLAG_AUTOPAY == PAYMENT_FLAG_AUTOPAY
+        if not window.wallet.has_password() and window.config.fee_per_kb() is not None:
+            if payment_data[PAYMENT_FLAGS] is not None:
+                return payment_data[PAYMENT_FLAGS] & PAYMENT_FLAG_AUTOPAY == PAYMENT_FLAG_AUTOPAY
         return False
 
-    def autopay_payment(self, wallet_name, payment_data, overdue_payment_times):
+    def autopay_payments(self, wallet_name, payment_entries):
         """ For unencrypted wallets, the option is (will be) there to make the payments automatically, rather than simply mark them as unpaid occurrences. """
-        # TODO implement this, but for now it just does the same.
-        print("AUTOPAY", wallet_name, payment_data, overdue_payment_times)
-        self.remember_overdue_payment_occurrences(payment_data, overdue_payment_times)
+        # payment_entries = [ (payment_data, overdue_payment_times), ... ]
+        
+        wallet_window = self.wallet_windows[wallet_name]
+        wallet = wallet_window.wallet
+        config = wallet_window.config
+        network = wallet_window.network
+        
+        outputs = []
+        for payment_data, overdue_payment_times in payment_entries:
+            totalSatoshis = len(overdue_payment_times) * payment_data[PAYMENT_AMOUNT]
+            address = Address.from_string(payment_data[PAYMENT_ADDRESS])
+            outputs.append((TYPE_ADDRESS, address, totalSatoshis))        
+
+        password = None
+        tx = wallet.mktx(outputs, password, wallet_window.config)
+        status, data = network.broadcast(tx)
+        
+        if status:
+            # data is txid.
+            return data
+        # data is error message
+
+        # Fallback to remembering the overdue payments.
+        # TODO: Alert the user about the failure - best way is to mark the payment.
+        for payment_data, overdue_payment_times in payment_entries:
+            self.remember_overdue_payment_occurrences( payment_data, overdue_payment_times)
         
     def remember_overdue_payment_occurrences(self, payment_data, overdue_payment_times):
         """ Record the newly identified overdue payment occurrences. """

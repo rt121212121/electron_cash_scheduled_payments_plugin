@@ -120,10 +120,11 @@ class PaymentDialog(QDialog, MessageBoxMixin):
         formLayout.addRow(label, count_combo)
 
         # The setting will be cleared if the wallet somehow becomes unencrypted, and will only be available for unencrypted wallets.
-        isEnabled = not self.main_window.wallet.storage.is_encrypted()
+        isEnabled = not self.main_window.wallet.has_password() and window.config.fee_per_kb() is not None
         self.value_autopayment = self.value_autopayment and isEnabled
         # Will show it for now, for encrypted wallets.  Might be less confusing not to show it.
-        self.autoPaymentCheckbox = QCheckBox("Make this payment automatically.")
+        self.autoPaymentCheckbox = QCheckBox(_("Make this payment automatically."))
+        self.autoPaymentCheckbox.setToolTip(_("Requirements") +":\n"+ _("1. The wallet must not have a password.") +"\n"+ _("2. There must be a default fee/kb configured for the wallet."+ "\n"+ _("If this checkbox is interactive and not disabled, these requirements are met.")))
         self.autoPaymentCheckbox.setChecked(self.value_autopayment)
         self.autoPaymentCheckbox.setEnabled(isEnabled)
         formLayout.addRow(_("Options"), self.autoPaymentCheckbox)
