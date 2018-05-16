@@ -280,3 +280,5 @@ class PaymentDialog(QDialog, MessageBoxMixin):
             e.setFrozen(True)
         self.payto_edit.setText(_("please wait..."))
         return True
+
+    on_pr = None
