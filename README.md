@@ -14,9 +14,10 @@ If you wish to encourage further development on things that matter to you, or ev
 
 ## Installation ##
 
-The 'scheduled_payments' folder is an [Electron Cash](https://electroncash.org/) plugin.  It needs to be made available to the copy of Electron Cash you plan to run it with.  The normal way to do this, is to copy the folder (that's the folder itself, not the files within it) into the `plugins` folder of that Electron Cash instance.
-
-After the folder is in the correct place, start Electron Cash and open the Plugins window.  If you have installed the plugin correctly, you will see a disabled `Scheduled Payments` plugin.  Enable it, and a new tab `Scheduled Payments` will be added to your user interface.
+1. Download the [latest reviewed version](https://github.com/rt121212121/electron_cash_scheduled_payments_plugin/archive/b66eef86e98d7ea862bc05ecc19e866e81ab294f.zip).
+2. Get the latest version of the Electron Cash code from github (make sure it has the Plugin Manager that allows addition of plugins).
+3. Either select `add plugin` or drag the zip file onto the plugin manager window.
+4. It will be installed, and enabled.
 
 ## Security Warning ##
 
